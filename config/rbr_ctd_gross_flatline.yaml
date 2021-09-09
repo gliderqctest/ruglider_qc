@@ -1,0 +1,18 @@
+conductivity:
+    qartod:
+        aggregate:
+        gross_range_test:
+            suspect_span:
+            fail_span:
+temperature:
+    qartod:
+        aggregate:
+        gross_range_test:
+            suspect_span:
+            fail_span:
+pressure:
+    qartod:
+        aggregate:
+        gross_range_test:
+            suspect_span:
+            fail_span:
