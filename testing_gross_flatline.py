@@ -42,4 +42,4 @@ for cl in collected_list:
                       attrs=attrs)
     ds[column_name] = da
 
-ds.to_netcdf(f'{f.split(".nc")[0]}_qc.nc')
+ds.to_netcdf(f'{f.split(".nc")[0]}_gross_flatline_qc.nc')
