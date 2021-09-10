@@ -24,13 +24,15 @@ for cl in collected_list:
     flags = getattr(inspect.getmodule(cl.function), 'FLAGS')
     varflagnames = [d for d in flags.__dict__ if not d.startswith('__')]
     varflagvalues = [getattr(flags, d) for d in varflagnames]
+    thresholds = c.config[varname]['qartod'][cl.test]
 
-    # Set QC variable attributes  TODO: add spans from config file for suspect and fail
+    # Set QC variable attributes  TODO: modify format for flag_config attribute?
     attrs = {
         'standard_name': standard_name,
         'long_name': long_name,
         'flag_values': np.byte(varflagvalues),
         'flag_meanings': ' '.join(varflagnames),
+        'flag_configurations': str(thresholds),
         'valid_min': np.byte(min(varflagvalues)),
         'valid_max': np.byte(max(varflagvalues)),
         'ioos_qc_module': cl.package,
