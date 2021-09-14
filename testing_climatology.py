@@ -1,48 +1,40 @@
-import inspect
 import numpy as np
 import xarray as xr
-from ioos_qc.config import Config
-from ioos_qc.streams import XarrayStream
-from ioos_qc.results import collect_results
+from ioos_qc.qartod import ClimatologyConfig, climatology_test
 
-##### this doesn't work
-##### Could not run "qartod.climatology_test: climatology_test() missing 2 required positional arguments: 'config' and 'zinp'
+# test on conductivity
 
 f = './test_files/maracoos_02-20210716T1814/maracoos_02_20210716T190208Z_dbd.nc'
+varnames = ['conductivity']
+varflagvalues = [1, 2, 3, 4, 9]
 ds = xr.open_dataset(f)
 
-c = Config('./config/seabird_ctd_climatology_mara02test.yaml')
-print(c.config)
-xs = XarrayStream(ds, time='time', lat='latitude', lon='longitude')
-qc_results = xs.run(c)
-collected_list = collect_results(qc_results, how='list')
-
-for cl in collected_list:
-    varname = cl.stream_id
-    variable_data = cl.data
-    column_name = f'{varname}_{cl.package}_{cl.test}'
-    flag_results = cl.results.data
-    standard_name = getattr(cl.function, 'standard_name', 'quality_flag')
-    long_name = getattr(cl.function, 'long_name', 'Quality Flag')
-    flags = getattr(inspect.getmodule(cl.function), 'FLAGS')
-    varflagnames = [d for d in flags.__dict__ if not d.startswith('__')]
-    varflagvalues = [getattr(flags, d) for d in varflagnames]
+for varname in varnames:
+    c = ClimatologyConfig()
+    c.add(tspan=['2021-06-01', '2021-09-01'],
+          vspan=[3.4, 5],
+          zspan=[0, 1000])
+    results = climatology_test(config=c,
+                               inp=ds[varname].values,
+                               tinp=ds.time.values,
+                               zinp=ds.depth.values)
 
     # Set QC variable attributes  TODO: add spans from config file for suspect and fail
     attrs = {
-        'standard_name': standard_name,
-        'long_name': long_name,
+        'standard_name': 'climatology_test_quality_flag',
+        'long_name': 'Climatology Test Quality Flag',
         'flag_values': np.byte(varflagvalues),
-        'flag_meanings': ' '.join(varflagnames),
+        'flag_meanings': 'GOOD UNKNOWN SUSPECT FAIL MISSING',
+        'flag_configurations': 'add config info',
         'valid_min': np.byte(min(varflagvalues)),
         'valid_max': np.byte(max(varflagvalues)),
-        'ioos_qc_module': cl.package,
-        'ioos_qc_test': cl.test,
-        'ioos_qc_target': cl.stream_id,
+        'ioos_qc_module': 'qartod',
+        'ioos_qc_test': 'climatology_test',
+        'ioos_qc_target': varname,
     }
-    # Add QC variable to dataset - should the QC values be floats? right now they're uint8
-    da = xr.DataArray(flag_results, coords=ds[varname].coords, dims=ds[varname].dims, name=column_name,
+    qcname = f'{varname}_qartod_climatology_test'
+    da = xr.DataArray(results.data, coords=ds[varname].coords, dims=ds[varname].dims, name=qcname,
                       attrs=attrs)
-    ds[column_name] = da
+    ds[qcname] = da
 
 ds.to_netcdf(f'{f.split(".nc")[0]}_climatology_qc.nc')
