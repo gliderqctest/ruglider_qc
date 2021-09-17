@@ -1,0 +1,61 @@
+contexts:
+    -   window:
+            starting: 2021-07-01T00:00:00Z
+            ending: 2021-09-01T00:00:00Z
+        streams:
+            conductivity:
+                qartod:
+                    aggregate: 
+                    gross_range_test: 
+                        suspect_span: [0, 6]
+                        fail_span: [0, 9]
+                    climatology_test:
+                        config: 
+                            vspan: [3.4, 5]
+                            fspan:
+                        zinp: [0,1000]
+                    spike_test: 
+                        suspect_threshold: 0.1
+                        fail_threshold: 0.2
+                    rate_of_change_test: 
+                        threshold: 0.00005
+                    flat_line_test: 
+                        tolerance: 0.00001
+                        suspect_threshold: 300
+                        fail_threshold: 600
+            temperature:
+                qartod:
+                    aggregate: 
+                    gross_range_test: 
+                        suspect_span: [1, 32]
+                        fail_span: [-5, 42]
+                    climatology_test:
+                        suspect_span: [7, 27]
+                        fail_span:
+                    spike_test: 
+                        suspect_threshold: 0.2
+                        fail_threshold: 0.5
+                    rate_of_change_test: 
+                        threshold: 0.5
+                    flat_line_test: 
+                        tolerance: 0.001
+                        suspect_threshold: 300
+                        fail_threshold: 600
+            pressure:
+                qartod:
+                    aggregate: 
+                    gross_range_test: 
+                        suspect_span: 
+                        fail_span: [0, 100]
+                    climatology_test:
+                        suspect_span: [5, 10]
+                        fail_span:
+                    spike_test: 
+                        suspect_threshold: 1
+                        fail_threshold: 2
+                    rate_of_change_test: 
+                        threshold: 2
+                    flat_line_test: 
+                        tolerance: 0.002
+                        suspect_threshold: 300
+                        fail_threshold: 600
