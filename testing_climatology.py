@@ -11,7 +11,12 @@ ds = xr.open_dataset(f)
 
 for varname in varnames:
     c = ClimatologyConfig()
-    c.add(tspan=['2021-06-01', '2021-09-01'],
+    # c.add(tspan=['2021-06-01', '2021-09-01'],
+    #       vspan=[3.4, 5],
+    #       zspan=[0, 1000])
+    # this doesn't work with ioos_qc qartod.py line 345
+    c.add(tspan=[150, 270],
+          period='dayofyear',
           vspan=[3.4, 5],
           zspan=[0, 1000])
     results = climatology_test(config=c,
