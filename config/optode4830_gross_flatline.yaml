@@ -1,6 +1,5 @@
 oxygen_concentration:
     qartod:
-        aggregate:
         gross_range_test:
             suspect_span:
             fail_span: [0, 500]
@@ -10,7 +9,6 @@ oxygen_concentration:
             fail_threshold: 600
 oxygen_saturation:
     qartod:
-        aggregate:
         gross_range_test:
             suspect_span:
             fail_span: [0, 150]
