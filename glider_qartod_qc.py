@@ -216,6 +216,7 @@ if __name__ == '__main__':
                             help='Deployment dataset status <Default=rt>',
                             choices=['rt', 'delayed'],
                             default='rt')
+
     arg_parser.add_argument('--level',
                             choices=['raw', 'sci', 'ngdac'],
                             default='sci',
