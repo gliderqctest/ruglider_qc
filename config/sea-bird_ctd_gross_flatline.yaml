@@ -1,30 +1,27 @@
 conductivity:
     qartod:
-        aggregate:
         gross_range_test:
             suspect_span: [0, 6]
             fail_span: [0, 9]
         flat_line_test:
             tolerance: 0.00001
-            suspect_threshold: 300
-            fail_threshold: 600
+            suspect_threshold: 10
+            fail_threshold: 30
 temperature:
     qartod:
-        aggregate:
         gross_range_test:
             suspect_span: [1, 32]
             fail_span: [-5, 42]
         flat_line_test:
             tolerance: 0.001
-            suspect_threshold: 300
-            fail_threshold: 600
+            suspect_threshold: 10
+            fail_threshold: 30
 pressure:
     qartod:
-        aggregate:
         gross_range_test:
             suspect_span:
             fail_span: [0, 100]
         flat_line_test:
             tolerance: 0.002
-            suspect_threshold: 300
-            fail_threshold: 600
+            suspect_threshold: 10
+            fail_threshold: 30
