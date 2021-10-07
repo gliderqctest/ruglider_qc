@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # coding=utf-8
-"""Tests based on the IOOS QARTOD manuals."""
+"""Tests based on the IOOS QARTOD manuals.
+Modified by lnazzaro 10/2021:
+    - addition of pressure test
+    - modifications to flat line test
+        - require at least 3 non-NA data points within time window in order to flag
+        - if not enough data to evaluate, default to 'not evaluated' instead of 'pass'."""
 import logging
 import warnings
 from typing import Dict, List, Tuple, Union, Sequence
@@ -727,9 +732,12 @@ def flat_line_test(inp: Sequence[N],
     # Start with everything as passing
     flag_arr = np.full((inp.size,), QartodFlags.GOOD)
 
-    # if we have fewer than 3 points, we can't run the test, so everything passes
-    if len(inp) < 3:
-        return flag_arr.reshape(original_shape)
+    # if we have fewer than 3 points, we can't run the test, so everything is unknown or missing
+    # unnecessary with addition of 3-data-point requirement within each window
+    # if len(inp) < 3:
+    #     flag_arr = np.full((inp.size,), QartodFlags.UNKNOWN)
+    #     flag_arr[inp.mask] = QartodFlags.MISSING
+    #     return flag_arr.reshape(original_shape)
 
     # determine median time interval
     tinp = mapdates(tinp).flatten()
@@ -759,12 +767,25 @@ def flat_line_test(inp: Sequence[N],
         data_range = np.abs(data_max - data_min)
         data_count = np.ma.count(window, 1)
 
-        # find data ranges that are within threshold and flag them
+        # find data ranges that are within threshold AND have high enough data count and flag them
         test_results = np.ma.filled(np.logical_and(data_range < tolerance, data_count > 2), fill_value=False)
         # data points before end of first window should pass
         n_fill = count if count < len(inp) else len(inp)
         test_results = np.insert(test_results, 0, np.full((n_fill,), False))
         flag_arr[test_results] = flag_value
+        # if data ranges are within threshold and DO NOT have high enough data count, flag as unknown
+        test_results = np.ma.filled(np.logical_and(data_range < tolerance, data_count <= 2), fill_value=False)
+        test_results = np.insert(test_results, 0, np.full((n_fill,), False))
+        # we disagree that data points before end of first window should pass
+        # loop through beginning window points and flag as not evaluated until (if) threshold is exceeded
+        for ni in np.arange(n_fill):
+            if np.isnan(inp[ni]):
+                continue
+            if np.nanmax(inp[:ni+1]) - np.nanmin(inp[:ni+1]) < tolerance:
+                test_results[ni] = True
+            else:
+                break
+        flag_arr[test_results] = QartodFlags.UNKNOWN
 
     run_test(suspect_threshold, QartodFlags.SUSPECT)
     run_test(fail_threshold, QartodFlags.FAIL)
