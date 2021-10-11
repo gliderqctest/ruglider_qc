@@ -8,6 +8,7 @@ from ioos_qc.utils import load_config_as_dict as loadconfig
 import os
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+from datetime import timedelta
 
 
 # read in file and profile time
@@ -40,7 +41,7 @@ for region in region_bounds['regions']:
     if Polygon(list(zip(region['boundaries']['longitude'], region['boundaries']['latitude']))).contains(Point(profile_lon, profile_lat)):
         best_region = region
 
-if best_region['region'] is not 'global':
+if best_region['region'] != 'global':
     # pull in regional config
     config_file = os.path.join('./config/',best_region['region']+'_configs.yml')
     c_region = Config(config_file)
@@ -48,13 +49,16 @@ if best_region['region'] is not 'global':
     # loop through different time ranges and replace existing
     # config 'c' if an appropriate time window with higher
     # priority is found
-    for c0 in c_region['contexts']:
+    for c0 in c_region.config['contexts']:
         if c0['priority'] >= c['priority']:
             continue
         t0 = c0['window']['starting'].replace(year = profile_time.year)
         t1 = c0['window']['ending'].replace(year = profile_time.year)
         if np.logical_and(profile_time >= t0, profile_time <= t1):
             c = c0
+
+c['window']['starting'] = c['window']['starting'].replace(year = profile_time.year)
+c['window']['ending'] = c['window']['ending'].replace(year = profile_time.year)
 
 # loop through streams
 for sensor in c['streams']:
@@ -84,16 +88,17 @@ for sensor in c['streams']:
             # write to nc with attributes
         elif test == 'climatology_test':
             # climatology test
-            climatology_settings = {'fspan': None, 'vspan': None, 'zspan': None}
+            climatology_settings = {'tspan': [c['window']['starting']-timedelta(days=2), c['window']['ending']+timedelta(days=2)],
+                                    'fspan': None, 'vspan': None, 'zspan': None}
 
             # if no set depth range, apply thresholds to full profile depth
             if 'depth_range' not in c['streams'][sensor]['qartod'][test].keys():
-                climatology_settings['zspan'] = [0, np.max(ds.depth.values)]
+                climatology_settings['zspan'] = [0, np.nanmax(ds.depth.values)]
                 if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
                     climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span']
                 if 'fail_span' in c['streams'][sensor]['qartod'][test].keys():
                     climatology_settings['fspan'] = c['streams'][sensor]['qartod'][test]['fail_span']
-                climatology_config = ClimatologyConfig()
+                climatology_config = qartod.ClimatologyConfig()
                 climatology_config.add(**climatology_settings)
                 flag_vals = qartod.climatology_test(config=climatology_config,
                                                     inp=data,
@@ -102,7 +107,8 @@ for sensor in c['streams']:
             else:
                 # if one depth range provided, apply thresholds only to that depth range
                 if len(np.shape(c['streams'][sensor]['qartod'][test]['depth_range'])) == 1:
-                    climatology_settings = {'fspan': c['streams'][sensor]['qartod'][test]['depth_range'],
+                    climatology_settings = {'tspan': [c['window']['starting']-timedelta(days=2), c['window']['ending']+timedelta(days=2)],
+                                            'fspan': c['streams'][sensor]['qartod'][test]['depth_range'],
                                             'vspan': None, 'zspan': None}
                     if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
                         climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span']
@@ -117,7 +123,8 @@ for sensor in c['streams']:
                 else: # if different thresholds for multiple depth ranges, loop through each
                     flag_vals = 2 * np.ones(np.shape(data))
                     for z_int in len(c['streams'][sensor]['qartod'][test]['depth_range']):
-                        climatology_settings = {'fspan': c['streams'][sensor]['qartod'][test]['depth_range'][z_int],
+                        climatology_settings = {'tspan': [c['window']['starting']-timedelta(days=2), c['window']['ending']+timedelta(days=2)],
+                                                'fspan': c['streams'][sensor]['qartod'][test]['depth_range'][z_int],
                                                 'vspan': None, 'zspan': None}
                         if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
                             climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span'][z_int]
