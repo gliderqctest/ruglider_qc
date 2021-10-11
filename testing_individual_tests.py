@@ -61,7 +61,7 @@ c['window']['starting'] = c['window']['starting'].replace(year = profile_time.ye
 c['window']['ending'] = c['window']['ending'].replace(year = profile_time.year)
 
 # loop through streams
-for sensor in c['streams']:
+for sensor, config_info in c['streams'].items():
     if sensor not in ds.data_vars:
         continue
     # grab data for sensor
@@ -77,14 +77,14 @@ for sensor in c['streams']:
     # original locations of where time interval is long
     tdiff_long_i = np.append(non_nan_i[tdiff_long], non_nan_i[tdiff_long+1])
 
-    for test in c['streams'][sensor]['qartod']:
+    for test, cinfo in config_info['qartod'].items():
         if test == 'pressure_test':
             # pressure test
             flag_vals = 2 * np.ones(np.shape(data))
             flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
             flag_vals[non_nan_ind] = qartod.pressure_test(inp = data[non_nan_ind],
                                                           tinp = times[non_nan_ind],
-                                                          **c['streams'][sensor]['qartod'][test])
+                                                          **cinfo)
             # write to nc with attributes
         elif test == 'climatology_test':
             # climatology test
@@ -92,12 +92,12 @@ for sensor in c['streams']:
                                     'fspan': None, 'vspan': None, 'zspan': None}
 
             # if no set depth range, apply thresholds to full profile depth
-            if 'depth_range' not in c['streams'][sensor]['qartod'][test].keys():
+            if 'depth_range' not in cinfo.keys():
                 climatology_settings['zspan'] = [0, np.nanmax(ds.depth.values)]
-                if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
-                    climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span']
-                if 'fail_span' in c['streams'][sensor]['qartod'][test].keys():
-                    climatology_settings['fspan'] = c['streams'][sensor]['qartod'][test]['fail_span']
+                if 'suspect_span' in cinfo.keys():
+                    climatology_settings['vspan'] = cinfo['suspect_span']
+                if 'fail_span' in cinfo.keys():
+                    climatology_settings['fspan'] = cinfo['fail_span']
                 climatology_config = qartod.ClimatologyConfig()
                 climatology_config.add(**climatology_settings)
                 flag_vals = qartod.climatology_test(config=climatology_config,
@@ -106,15 +106,15 @@ for sensor in c['streams']:
                                                     zinp=ds.depth.values)
             else:
                 # if one depth range provided, apply thresholds only to that depth range
-                if len(np.shape(c['streams'][sensor]['qartod'][test]['depth_range'])) == 1:
+                if len(np.shape(cinfo['depth_range'])) == 1:
                     climatology_settings = {'tspan': [c['window']['starting']-timedelta(days=2), c['window']['ending']+timedelta(days=2)],
-                                            'fspan': c['streams'][sensor]['qartod'][test]['depth_range'],
+                                            'fspan': cinfo['depth_range'],
                                             'vspan': None, 'zspan': None}
-                    if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
-                        climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span']
-                    if 'fail_span' in c['streams'][sensor]['qartod'][test].keys():
-                        climatology_settings['fspan'] = c['streams'][sensor]['qartod'][test]['fail_span']
-                    climatology_config = ClimatologyConfig()
+                    if 'suspect_span' in cinfo.keys():
+                        climatology_settings['vspan'] = cinfo['suspect_span']
+                    if 'fail_span' in cinfo.keys():
+                        climatology_settings['fspan'] = cinfo['fail_span']
+                    climatology_config = qartod.ClimatologyConfig()
                     climatology_config.add(**climatology_settings)
                     flag_vals = qartod.climatology_test(config=climatology_config,
                                                         inp=data,
@@ -122,18 +122,18 @@ for sensor in c['streams']:
                                                         zinp=ds.depth.values)
                 else: # if different thresholds for multiple depth ranges, loop through each
                     flag_vals = 2 * np.ones(np.shape(data))
-                    for z_int in len(c['streams'][sensor]['qartod'][test]['depth_range']):
+                    for z_int in len(cinfo['depth_range']):
                         climatology_settings = {'tspan': [c['window']['starting']-timedelta(days=2), c['window']['ending']+timedelta(days=2)],
-                                                'fspan': c['streams'][sensor]['qartod'][test]['depth_range'][z_int],
+                                                'fspan': cinfo['depth_range'][z_int],
                                                 'vspan': None, 'zspan': None}
-                        if 'suspect_span' in c['streams'][sensor]['qartod'][test].keys():
-                            climatology_settings['vspan'] = c['streams'][sensor]['qartod'][test]['suspect_span'][z_int]
-                        if 'fail_span' in c['streams'][sensor]['qartod'][test].keys():
-                            climatology_settings['fspan'] = c['streams'][sensor]['qartod'][test]['fail_span'][z_int]
-                        climatology_config = ClimatologyConfig()
+                        if 'suspect_span' in cinfo.keys():
+                            climatology_settings['vspan'] = cinfo['suspect_span'][z_int]
+                        if 'fail_span' in cinfo.keys():
+                            climatology_settings['fspan'] = cinfo['fail_span'][z_int]
+                        climatology_config = qartod.ClimatologyConfig()
                         climatology_config.add(**climatology_settings)
-                        z_ind = np.logical_and(ds.depth.values > c['streams'][sensor]['qartod'][test]['depth_range'][z_int][0],
-                                               ds.depth.values <= c['streams'][sensor]['qartod'][test]['depth_range'][z_int][1])
+                        z_ind = np.logical_and(ds.depth.values > cinfo['depth_range'][z_int][0],
+                                               ds.depth.values <= cinfo['depth_range'][z_int][1])
                         flag_vals[z_ind] = qartod.climatology_test(config=climatology_config,
                                                             inp=data[z_ind],
                                                             tinp=times[z_ind],
@@ -143,10 +143,10 @@ for sensor in c['streams']:
             # spike test
             spike_settings = {'suspect_threshold': None, 'fail_threshold': None}
             # convert original threshold from units/s to units/average-timestep
-            if 'suspect_threshold' in c['streams'][sensor]['qartod'][test].keys():
-                spike_settings['suspect_threshold'] = c['streams'][sensor]['qartod'][test]['suspect_threshold'] * np.nanmedian(tdiff)
-            if 'fail_threshold' in c['streams'][sensor]['qartod'][test].keys():
-                spike_settings['fail_threshold'] = c['streams'][sensor]['qartod'][test]['fail_threshold'] * np.nanmedian(tdiff)
+            if 'suspect_threshold' in cinfo.keys():
+                spike_settings['suspect_threshold'] = cinfo['suspect_threshold'] * np.nanmedian(tdiff)
+            if 'fail_threshold' in cinfo.keys():
+                spike_settings['fail_threshold'] = cinfo['fail_threshold'] * np.nanmedian(tdiff)
             flag_vals = 2 * np.ones(np.shape(data))
             flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
             flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
@@ -160,5 +160,5 @@ for sensor in c['streams']:
             flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
             flag_vals[non_nan_ind] = qartod.rate_of_change_test(inp=data[non_nan_ind],
                                                           tinp=times[non_nan_ind],
-                                                          **c['streams'][sensor]['qartod'][test])
+                                                          **cinfo)
             # write to nc with attributes
