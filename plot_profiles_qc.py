@@ -117,7 +117,7 @@ def main(args):
 
                     # Plot data
                     xdata = ds[v].values
-                    ydata = ds['pressure'].values * 10
+                    ydata = ds['depth'].values
                     xmask = ~np.isnan(xdata)  # get rid of nans so the lines are continuous
                     ax.plot(xdata[xmask], ydata[xmask], color='k')  # plot lines
                     ax.scatter(xdata[xmask], ydata[xmask], color='k', s=30)  # plot points
@@ -131,8 +131,9 @@ def main(args):
                     fail_key = [x for x in flag_config.keys() if 'fail' in x]
                     fail_threshold = flag_config[fail_key[0]]
 
-                    # Iterate through suspect (3) and fail (4) flags
-                    flag_defs = dict(suspect=dict(value=3, color='orange'),
+                    # Iterate through unknown (2) suspect (3) and fail (4) flags
+                    flag_defs = dict(unknown=dict(value=2, color='cyan'),
+                                     suspect=dict(value=3, color='orange'),
                                      fail=dict(value=4, color='red'))
 
                     for fd, info in flag_defs.items():
@@ -156,7 +157,7 @@ def main(args):
 
                     ax.set_ylim(ylims)
                     ax.invert_yaxis()
-                    ax.set_ylabel('Pressure (dbar)')
+                    ax.set_ylabel('Depth (m)')
                     ax.set_xlabel(f'{v} ({ds[v].units})')
                     ax.set_title(title)
 
