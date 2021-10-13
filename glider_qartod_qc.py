@@ -285,9 +285,12 @@ def main(args):
                         qc_varname = f'{sensor}_qartod_pressure_test'
                         flag_vals = 2 * np.ones(np.shape(data))
                         flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
-                        flag_vals[non_nan_ind] = qartod.pressure_test(inp=data[non_nan_ind],
-                                                                      tinp=times[non_nan_ind],
-                                                                      **cinfo)
+
+                        # only run the test if the array has values
+                        if len(non_nan_i) > 0:
+                            flag_vals[non_nan_ind] = qartod.pressure_test(inp=data[non_nan_ind],
+                                                                          tinp=times[non_nan_ind],
+                                                                          **cinfo)
 
                     elif test == 'climatology_test':
                         qc_varname = f'{sensor}_qartod_climatology_test'
@@ -366,18 +369,24 @@ def main(args):
 
                         flag_vals = 2 * np.ones(np.shape(data))
                         flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
-                        flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
-                                                                   **spike_settings)
-                        # flag as unknown on either end of long time gap
-                        flag_vals[tdiff_long_i] = qartod.QartodFlags.UNKNOWN
+
+                        # only run the test if the array has values
+                        if len(non_nan_i) > 0:
+                            flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
+                                                                       **spike_settings)
+                            # flag as unknown on either end of long time gap
+                            flag_vals[tdiff_long_i] = qartod.QartodFlags.UNKNOWN
 
                     elif test == 'rate_of_change_test':
                         qc_varname = f'{sensor}_qartod_rate_of_change_test'
                         flag_vals = 2 * np.ones(np.shape(data))
                         flag_vals[np.invert(non_nan_ind)] = qartod.QartodFlags.MISSING
-                        flag_vals[non_nan_ind] = qartod.rate_of_change_test(inp=data[non_nan_ind],
-                                                                            tinp=times[non_nan_ind],
-                                                                            **cinfo)
+
+                        # only run the test if the array has values
+                        if len(non_nan_i) > 0:
+                            flag_vals[non_nan_ind] = qartod.rate_of_change_test(inp=data[non_nan_ind],
+                                                                                tinp=times[non_nan_ind],
+                                                                                **cinfo)
 
                     # Define pressure/climatology/spike/rate of change QC variable attributes
                     attrs = set_qartod_attrs(test, sensor, cinfo)
