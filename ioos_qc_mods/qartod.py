@@ -276,9 +276,8 @@ def pressure_test(inp: Sequence[N],
         elif np.sum(dPdt < 0) >= 0.75 * len(dPdt):
             profile_direction = 'up'
         else:
-            raise ValueError(
-                'Profile direction not consistent enough to be clearly identified as either up or down.'
-            )
+            flag_arr[:] = QartodFlags.UNKNOWN
+            logging.warning('Profile direction not consistent enough to be clearly identified as either up or down.')
     else:
         raise ValueError(
             'Unknown profile_direction: "{0}", only "up or u" and "down or d" methods, or "unknown" to calculate based on given data, are available'
@@ -287,9 +286,6 @@ def pressure_test(inp: Sequence[N],
 
     if profile_direction == 'up':
         dPdt = -dPdt
-
-    # Start with everything as passing (1)
-    flag_arr = np.ma.ones(inp.size, dtype='uint8')
 
     # If n-1 - ref is greater than the low threshold, SUSPECT test
     if suspect_threshold is not None:
@@ -432,9 +428,6 @@ class ClimatologyConfig(object):
         flag_arr = np.ma.empty(inp.size, dtype='uint8')
         flag_arr.fill(QartodFlags.UNKNOWN)
 
-        # If the value is masked set the flag to MISSING
-        flag_arr[inp.mask] = QartodFlags.MISSING
-
         # Iterate over each member and apply its spans on the input data.
         # Member spans are applied in order and any data points that fall into
         # more than one member are flagged by each one.
@@ -485,6 +478,9 @@ class ClimatologyConfig(object):
                 flag_arr[(values_idx & fail_idx)] = QartodFlags.FAIL
                 flag_arr[(values_idx & ~fail_idx & suspect_idx)] = QartodFlags.SUSPECT
                 flag_arr[(values_idx & ~fail_idx & ~suspect_idx)] = QartodFlags.GOOD
+
+            # If the value is masked set the flag to MISSING
+            flag_arr[inp.mask] = QartodFlags.MISSING
 
         return flag_arr
 
