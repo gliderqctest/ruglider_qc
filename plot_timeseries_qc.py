@@ -96,7 +96,7 @@ def main(args):
         # List the netcdf files to plot
         ncfiles = sorted(glob.glob(os.path.join(data_path, '*.nc')))
 
-        # Iterate through files and plot profiles
+        # Iterate through files and plot timeseries
         for f in ncfiles:
             nc_filename = f.split('/')[-1]
             try:
@@ -112,15 +112,15 @@ def main(args):
                 title = f'{ds[qv].long_name.split(" Test")[0]}: {ds[qv].flag_configurations}'
 
                 v = qv.split('_qartod')[0]
-                if v not in ['oxygen_concentration', 'oxygen_saturation', 'pressure']:  # skip for now
-                    fig, ax = plt.subplots(figsize=(8, 10))
+                if 'pressure' in v:
+                    fig, ax = plt.subplots(figsize=(10, 6))
 
                     # Plot data
-                    xdata = ds[v].values
-                    ydata = ds['depth'].values
-                    xmask = ~np.isnan(xdata)  # get rid of nans so the lines are continuous
-                    ax.plot(xdata[xmask], ydata[xmask], color='k')  # plot lines
-                    ax.scatter(xdata[xmask], ydata[xmask], color='k', s=30)  # plot points
+                    xdata = ds.time.values
+                    ydata = ds[v].values
+                    ymask = ~np.isnan(ydata)  # get rid of nans so the lines are continuous
+                    ax.plot(xdata[ymask], ydata[ymask], color='k')  # plot lines
+                    ax.scatter(xdata[ymask], ydata[ymask], color='k', s=30)  # plot points
                     ylims = ax.get_ylim()
                     xlims = ax.get_xlim()
 
@@ -165,8 +165,8 @@ def main(args):
 
                     ax.set_ylim(ylims)
                     ax.invert_yaxis()
-                    ax.set_ylabel('Depth (m)')
-                    ax.set_xlabel(f'{v} ({ds[v].units})')
+                    ax.set_xlabel('Time')
+                    ax.set_ylabel(f'{v} ({ds[v].units})')
                     ax.set_title(title)
 
                     sfile = os.path.join(save_path, f'{qv}_{nc_filename.split(".nc")[0]}_qc.png')
