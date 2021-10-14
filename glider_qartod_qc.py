@@ -194,7 +194,7 @@ def main(args):
             continue
 
         # List the netcdf files in queue
-        ncfiles = glob.glob(os.path.join(data_path, 'queue', '*.nc'))
+        ncfiles = sorted(glob.glob(os.path.join(data_path, 'queue', '*.nc')))
 
         # Iterate through files and apply QC
         for f in ncfiles:
@@ -374,6 +374,9 @@ def main(args):
                         if len(non_nan_i) > 0:
                             flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
                                                                        **spike_settings)
+                            # flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
+                            #                                            method='differential',
+                            #                                            **spike_settings)
                             # flag as unknown on either end of long time gap
                             flag_vals[tdiff_long_i] = qartod.QartodFlags.UNKNOWN
 
