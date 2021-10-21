@@ -259,6 +259,22 @@ def main(args):
                                       attrs=attrs)
                     ds[qc_varname] = da
 
+            # manually run gross range test for pressure based on depth_rating in file
+            test = 'gross_range_test'
+            sensor = 'pressure'
+            cinfo = {'fail_span': [0, float("".join(filter(str.isdigit,ds.platform.depth_rating)))]}
+            qc_varname = f'{sensor}_qartod_gross_range_test'
+            flag_vals = qartod.gross_range_test(inp=ds[sensor].values,
+                                                **cinfo)
+
+            # Define pressure/climatology/spike/rate of change QC variable attributes
+            attrs = set_qartod_attrs(test, sensor, cinfo)
+
+            # Add QC variable to the original dataset
+            da = xr.DataArray(flag_vals, coords=ds[sensor].coords, dims=ds[sensor].dims,
+                                      name=qc_varname, attrs=attrs)
+            ds[qc_varname] = da
+
             # Find the configuration files for the climatology, spike, rate of change, and pressure tests
             c = build_global_regional_config(ds, qc_config_root)
 
