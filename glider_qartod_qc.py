@@ -18,6 +18,7 @@ from ioos_qc.results import collect_results
 from ioos_qc.utils import load_config_as_dict as loadconfig
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import gsw
 
 
 def build_global_regional_config(ds, qc_config_root):
@@ -262,13 +263,20 @@ def main(args):
             # manually run gross range test for pressure based on depth_rating in file
             test = 'gross_range_test'
             sensor = 'pressure'
-            cinfo = {'fail_span': [0, float("".join(filter(str.isdigit,ds.platform.depth_rating)))]}
+
+            # convert the depth_rating in the file (meters) to dbar before comparison with the pressure variable
+            depth_rating = float("".join(filter(str.isdigit, ds.platform.depth_rating)))
+            pressure_rating = gsw.p_from_z(-depth_rating, np.nanmean(ds.profile_lat.values))
+            cinfo = {'fail_span': [0, pressure_rating]}
             qc_varname = f'{sensor}_qartod_gross_range_test'
             flag_vals = qartod.gross_range_test(inp=ds[sensor].values,
                                                 **cinfo)
 
-            # Define pressure/climatology/spike/rate of change QC variable attributes
+            # Define QC variable attributes, add a comment about the conversion from depth_rating in meters to dbar
+            cinfo = {'fail_span': [0, int(depth_rating)]}
             attrs = set_qartod_attrs(test, sensor, cinfo)
+            attrs['comment'] = 'Glider depth rating (m) in flag_configurations converted to pressure (dbar) from ' \
+                               'pressure and profile_lat using gsw.p_from_z'
 
             # Add QC variable to the original dataset
             da = xr.DataArray(flag_vals, coords=ds[sensor].coords, dims=ds[sensor].dims,
@@ -351,7 +359,7 @@ def main(args):
 
                             else:  # if different thresholds for multiple depth ranges, loop through each
                                 flag_vals = 2 * np.ones(np.shape(data))
-                                for z_int in len(cinfo['depth_range']):
+                                for z_int in range(len(cinfo['depth_range'])):
                                     climatology_settings = {'tspan': [c['window']['starting'] - timedelta(days=2),
                                                                       c['window']['ending'] + timedelta(days=2)],
                                                             'fspan': cinfo['depth_range'][z_int],
@@ -389,10 +397,8 @@ def main(args):
                         # only run the test if the array has values
                         if len(non_nan_i) > 0:
                             flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
+                                                                       method='differential',
                                                                        **spike_settings)
-                            # flag_vals[non_nan_ind] = qartod.spike_test(inp=data[non_nan_ind],
-                            #                                            method='differential',
-                            #                                            **spike_settings)
                             # flag as unknown on either end of long time gap
                             flag_vals[tdiff_long_i] = qartod.QartodFlags.UNKNOWN
 
@@ -415,7 +421,7 @@ def main(args):
                                       name=qc_varname, attrs=attrs)
                     ds[qc_varname] = da
 
-            # TODO add location and pressure gross range test
+            # TODO add location test
 
             # Save the resulting netcdf file with QC variables
             output_netcdf = os.path.join(data_path, nc_filename)
