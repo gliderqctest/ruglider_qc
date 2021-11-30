@@ -199,9 +199,9 @@ def main(args):
 
         # Iterate through files and apply QC
         for f in ncfiles:
-            nc_filename = f.split('/')[-1]
             try:
-                ds = xr.open_dataset(f)
+                with xr.open_dataset(f) as ds:
+                    ds = ds.load()
             except OSError as e:
                 logging.error('Error reading file {:s} ({:})'.format(f, e))
                 status = 1
@@ -423,9 +423,8 @@ def main(args):
 
             # TODO add location test
 
-            # Save the resulting netcdf file with QC variables
-            output_netcdf = os.path.join(data_path, nc_filename)
-            ds.to_netcdf(output_netcdf)
+            # Save the netcdf file with QC variables over the original file
+            ds.to_netcdf(f)
 
     return status
 
