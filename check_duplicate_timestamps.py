@@ -87,8 +87,8 @@ def main(args):
         ncfiles = sorted(glob.glob(os.path.join(data_path, 'queue', '*.nc')))
 
         # Iterate through files and find duplicated timestamps
+        duplicates = 0
         for i, f in enumerate(ncfiles):
-            print(f)
             try:
                 ds = xr.open_dataset(f)
             except OSError as e:
@@ -118,15 +118,22 @@ def main(args):
             # rename the second dataset
             if np.logical_and(len(check_ds) == 0, len(check_ds2) == 0):
                 os.rename(f2, f'{f2}.duplicate')
+                logging.info('Duplicated timestamps found in file: {:s}'.format(f2))
+                duplicates += 1
             # if the unique timestamps aren't found in the second dataset, rename it
             elif np.logical_and(len(check_ds) > 0, len(check_ds2) == 0):
                 os.rename(f2, f'{f2}.duplicate')
+                logging.info('Duplicated timestamps found in file: {:s}'.format(f2))
+                duplicates += 1
             # if the unique timestamps aren't found in the first dataset, rename it
             elif np.logical_and(len(check_ds) == 0, len(check_ds2) > 0):
                 os.rename(f, f'{f}.duplicate')
+                logging.info('Duplicated timestamps found in file: {:s}'.format(f))
+                duplicates += 1
             else:
                 continue
 
+    logging.info(' {:} duplicated files found (of {:} total files)'.format(duplicates, len(ncfiles)))
     return status
 
 
