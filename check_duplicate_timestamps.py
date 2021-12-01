@@ -127,9 +127,12 @@ def main(args):
                 duplicates += 1
             # if the unique timestamps aren't found in the first dataset, rename it
             elif np.logical_and(len(check_ds) == 0, len(check_ds2) > 0):
-                os.rename(f, f'{f}.duplicate')
-                logging.info('Duplicated timestamps found in file: {:s}'.format(f))
-                duplicates += 1
+                try:
+                    os.rename(f, f'{f}.duplicate')
+                    logging.info('Duplicated timestamps found in file: {:s}'.format(f))
+                    duplicates += 1
+                except FileNotFoundError:  # file has already been identified as a duplicate
+                    continue
             else:
                 continue
 
