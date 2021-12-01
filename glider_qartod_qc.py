@@ -253,6 +253,10 @@ def main(args):
 
                     # Defining gross/flatline QC variable attributes
                     attrs = set_qartod_attrs(test, sensor, c.config[sensor]['qartod'][test])
+                    if not hasattr(ds[sensor], 'ancillary_variables'):
+                        ds[sensor].attrs['ancillary_variables'] = qc_varname
+                    else:
+                        ds[sensor].attrs['ancillary_variables'] = ' '.join((ds[sensor].ancillary_variables, qc_varname))
 
                     # Add gross/flatline QC variable to the original dataset
                     da = xr.DataArray(flag_results, coords=ds[sensor].coords, dims=ds[sensor].dims,
@@ -277,6 +281,10 @@ def main(args):
             attrs = set_qartod_attrs(test, sensor, cinfo)
             attrs['comment'] = 'Glider depth rating (m) in flag_configurations converted to pressure (dbar) from ' \
                                'pressure and profile_lat using gsw.p_from_z'
+            if not hasattr(ds[sensor],'ancillary_variables'):
+                ds[sensor].attrs['ancillary_variables'] = qc_varname
+            else:
+                ds[sensor].attrs['ancillary_variables'] = ' '.join((ds[sensor].ancillary_variables, qc_varname))
 
             # Add QC variable to the original dataset
             da = xr.DataArray(flag_vals, coords=ds[sensor].coords, dims=ds[sensor].dims,
@@ -415,6 +423,10 @@ def main(args):
 
                     # Define pressure/climatology/spike/rate of change QC variable attributes
                     attrs = set_qartod_attrs(test, sensor, cinfo)
+                    if not hasattr(ds[sensor], 'ancillary_variables'):
+                        ds[sensor].attrs['ancillary_variables'] = qc_varname
+                    else:
+                        ds[sensor].attrs['ancillary_variables'] = ' '.join((ds[sensor].ancillary_variables, qc_varname))
 
                     # Add QC variable to the original dataset
                     da = xr.DataArray(flag_vals, coords=ds[sensor].coords, dims=ds[sensor].dims,
