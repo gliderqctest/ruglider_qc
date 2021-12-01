@@ -17,6 +17,15 @@ from ioos_qc import qartod
 np.set_printoptions(suppress=True)
 
 
+def apply_qartod_qc(dataset):
+    # make a copy of conductivity and apply QARTOD QC flags
+    cond_copy = dataset.conductivity.copy()
+    for qv in [x for x in dataset.data_vars if 'conductivity_qartod' in x]:
+        qv_idx = np.where(np.logical_or(dataset[qv].values == 3, dataset[qv].values == 4))[0]
+        cond_copy[qv_idx] = np.nan
+    return cond_copy
+
+
 def initialize_flags(dataset):
     # start with flag values UNKNOWN (2)
     flags = 2 * np.ones(np.shape(dataset.conductivity.values))
@@ -159,18 +168,21 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
         skip = 0
         for i, f in enumerate(ncfiles):
             i += skip
-            nc_filename = ncfiles[i].split('/')[-1]
             try:
-                ds = xr.open_dataset(ncfiles[i])
+                with xr.open_dataset(ncfiles[i]) as ds:
+                    ds = ds.load()
+                    print(f'\nds1: {ncfiles[i]}')
             except OSError as e:
                 logging.error('Error reading file {:s} ({:})'.format(ncfiles[i], e))
                 status = 1
+                continue
+            except IndexError:
                 continue
 
             try:
                 ds.conductivity
             except AttributeError:
-                logging.error('conductivity not found in file {:s})'.format(ncfiles[i]))
+                logging.error('conductivity variable not found in file {:s})'.format(ncfiles[i]))
                 status = 1
                 continue
 
@@ -178,101 +190,140 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
             attrs = set_qc_attrs(qc_varname, 'conductivity')
             data_idx, pressure_idx, flag_vals = initialize_flags(ds)
 
+            if len(data_idx) == 0:
+                logging.error('conductivity data not found in file {:s})'.format(ncfiles[i]))
+                status = 1
+                continue
+
             # determine if profile is up or down
             if ds.pressure.values[pressure_idx][0] > ds.pressure.values[pressure_idx][-1]:
                 # if profile is up, test can't be run because you need a down profile paired with an up profile
-                # leave flag values as UNKNOWN (2) and just set the attributes and save the .nc file
-                # Add QC variable to the original dataset and save the nc file
-                output_netcdf = os.path.join(data_path, nc_filename)
-                save_ds(ds, flag_vals, attrs, output_netcdf)
-            else:  # profile is down, check the next file
+                # leave flag values as UNKNOWN (2), set the attributes and save the .nc file
+                save_ds(ds, flag_vals, attrs, ncfiles[i])
+            else:  # first profile is down, check the next file
                 try:
-                    ds2 = xr.open_dataset(ncfiles[i + 1])
+                    f2 = ncfiles[i + 1]
+                    with xr.open_dataset(f2) as ds2:
+                        ds2 = ds2.load()
                 except OSError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(ncfiles[i + 1], e))
+                    logging.error('Error reading file {:s} ({:})'.format(f2, e))
                     status = 1
+                    skip += 1
+                except IndexError:
+                    # if there are no more files, leave flag values on the first file as UNKNOWN (2)
+                    # set the attributes and save the first .nc file
+                    save_ds(ds, flag_vals, attrs, ncfiles[i])
                     continue
-                nc_filename2 = ncfiles[i + 1].split('/')[-1]
+
+                print(f'ds2: {f2}')
+                try:
+                    ds2.conductivity
+                except AttributeError:
+                    logging.error('conductivity variable not found in file {:s})'.format(f2))
+                    status = 1
+                    # TODO should we be checking the next file? example ru30_20210510T015902Z_sbd.nc
+                    # leave flag values on the first file as UNKNOWN (2), set the attributes and save the first .nc file
+                    save_ds(ds, flag_vals, attrs, ncfiles[i])
+                    continue
 
                 data_idx2, pressure_idx2, flag_vals2 = initialize_flags(ds2)
 
                 # determine if second profile is up or down
                 if ds2.pressure.values[pressure_idx2][0] < ds2.pressure.values[pressure_idx2][-1]:
                     # if second profile is also down, test can't be run on the first file
-                    print('need to figure this case out more')
+                    # leave flag values on the first file as UNKNOWN (2), set the attributes and save the first .nc file
+                    # but don't skip because this second file will now be the first file in the next loop
+                    save_ds(ds, flag_vals, attrs, ncfiles[i])
                 else:
                     # first profile is down and second profile is up
-                    # determine if the end/start timestamps are < 10 minutes apart,
+                    # determine if the end/start timestamps are < 5 minutes apart,
                     # indicating a paired yo (down-up profile pair)
-                    if ds2.time.values[0] - ds.time.values[-1] < np.timedelta64(10, 'm'):
-                        # calculate the area between the two profiles
-                        df = ds[{'pressure', 'conductivity'}].to_dataframe()
-                        df2 = ds2[{'pressure', 'conductivity'}].to_dataframe()
-                        df = df.append(df2)
-                        df = df.dropna(subset=['pressure', 'conductivity'])
-                        polygon_points = df.values.tolist()
-                        polygon = Polygon(polygon_points)
+                    if ds2.time.values[0] - ds.time.values[-1] < np.timedelta64(5, 'm'):
 
-                        # normalize area between the profiles and data range to pressure range
-                        pressure_range = (np.nanmax(df.pressure.values) - np.nanmin(df.pressure.values))
-                        area = polygon.area / pressure_range
-                        data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values)) / pressure_range
+                        # make a copy of conductivity and apply QARTOD QC flags
+                        conductivity_copy = apply_qartod_qc(ds)
+                        conductivity_copy2 = apply_qartod_qc(ds2)
 
-                        # If the normalized area between the profiles is greater than an order of magnitude more than
-                        # the normalized data range, flag both profiles as suspect. Otherwise flag both profiles as good
-                        if area > data_range * 10:
-                            flag = qartod.QartodFlags.SUSPECT
-                        else:
-                            flag = qartod.QartodFlags.GOOD
-                        flag_vals[data_idx] = flag
-                        flag_vals2[data_idx2] = flag
+                        # both yos must have data remaining after QARTOD flags are applied,
+                        # otherwise, test can't be run and leave the flag values as UNKNOWN (2)
+                        if np.logical_and(np.sum(~np.isnan(conductivity_copy)) > 0, np.sum(~np.isnan(conductivity_copy2)) > 0):
+                            # calculate the area between the two profiles
+                            df = conductivity_copy.to_dataframe().merge(ds.pressure.to_dataframe(), on='time')
+                            df2 = conductivity_copy2.to_dataframe().merge(ds2.pressure.to_dataframe(), on='time')
+                            df = df.append(df2)
+                            df = df.dropna(subset=['pressure', 'conductivity'])
+                            polygon_points = df.values.tolist()
+                            polygon = Polygon(polygon_points)
 
-                        t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                        tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                        fig, ax = plt.subplots(figsize=(8, 10))
-                        ax.plot(df.conductivity.values, df.pressure.values, color='k')  # plot lines
-                        ax.scatter(df.conductivity.values, df.pressure.values, color='k', s=30)  # plot points
-                        ax.invert_yaxis()
-                        ax.set_ylabel('Pressure (dbar)')
-                        ax.set_xlabel('Conductivity')
-                        ttl = '{} to {}\nNormalized Area = {}, Normalized Data Range = {}'.format(t0str, tfstr,
-                                                                                                  np.round(area, 4),
-                                                                                                  str(np.round(data_range, 4)))
-                        ax.set_title(ttl)
+                            # normalize area between the profiles and data range to pressure range
+                            pressure_range = (np.nanmax(df.pressure.values) - np.nanmin(df.pressure.values))
+                            area = polygon.area / pressure_range
+                            data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values)) / pressure_range
 
-                        # Iterate through unknown (2) and suspect (3) flags
-                        flag_defs = dict(unknown=dict(value=2, color='cyan'),
-                                         suspect=dict(value=3, color='orange'))
+                            # If the normalized area between the profiles is greater than an order of magnitude more
+                            # than the normalized data range, flag both profiles as fail.
+                            if area > data_range * 10:
+                                flag = qartod.QartodFlags.FAIL
+                            # If the normalized area between the profiles is greater than 5x more than the normalized
+                            # data range, flag both profiles as suspect
+                            elif area > data_range * 5:
+                                flag = qartod.QartodFlags.SUSPECT
+                            # Otherwise, both profiles are good
+                            else:
+                                flag = qartod.QartodFlags.GOOD
+                            flag_vals[data_idx] = flag
+                            flag_vals2[data_idx2] = flag
 
-                        for fd, info in flag_defs.items():
-                            idx = np.where(flag_vals == info['value'])
-                            if len(idx[0]) > 0:
-                                ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx], color=info['color'],
-                                           s=40, label=f'{qc_varname}-{fd}', zorder=10)
-                            idx2 = np.where(flag_vals2 == info['value'])
-                            if len(idx2[0]) > 0:
-                                ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2], color=info['color'],
-                                           s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                            t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                            tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                            fig, ax = plt.subplots(figsize=(8, 10))
+                            ax.plot(df.conductivity.values, df.pressure.values, color='k')  # plot lines
+                            ax.scatter(df.conductivity.values, df.pressure.values, color='k', s=30)  # plot points
+                            ax.invert_yaxis()
+                            ax.set_ylabel('Pressure (dbar)')
+                            ax.set_xlabel('Conductivity')
+                            ttl = '{} to {}\nNormalized Area = {}, Normalized Data Range = {}'.format(t0str, tfstr,
+                                                                                                      np.round(area, 4),
+                                                                                                      str(np.round(data_range, 4)))
+                            ax.set_title(ttl)
 
-                        # add legend if necessary
-                        handles, labels = plt.gca().get_legend_handles_labels()
-                        if len(handles) > 0:
-                            ax.legend()
+                            # Iterate through unknown (2), suspect (3), and fail (4) flags
+                            flag_defs = dict(unknown=dict(value=2, color='cyan'),
+                                             suspect=dict(value=3, color='orange'),
+                                             fail=dict(value=4, color='red'))
 
-                        sfile = os.path.join(data_path, f'{nc_filename.split(".nc")[0]}_{nc_filename2.split(".nc")[0]}_qc.png')
-                        plt.savefig(sfile, dpi=300)
-                        plt.close()
+                            for fd, info in flag_defs.items():
+                                idx = np.where(flag_vals == info['value'])
+                                if len(idx[0]) > 0:
+                                    ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx], color=info['color'],
+                                               s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                idx2 = np.where(flag_vals2 == info['value'])
+                                if len(idx2[0]) > 0:
+                                    ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2], color=info['color'],
+                                               s=40, label=f'{qc_varname}-{fd}', zorder=10)
+
+                            # add legend if necessary
+                            handles, labels = plt.gca().get_legend_handles_labels()
+                            by_label = dict(zip(labels, handles))
+                            if len(handles) > 0:
+                                ax.legend(by_label.values(), by_label.keys(), loc='best')
+
+                            plt_name = f'{ncfiles[i].split("/")[-1].split(".nc")[0]}_{f2.split("/")[-1].split(".nc")[0]}_qc.png'
+                            sfile = os.path.join(data_path, plt_name)
+                            plt.savefig(sfile, dpi=300)
+                            plt.close()
 
                         # save both .nc files with QC applied
-                        output_netcdf = os.path.join(data_path, nc_filename)
-                        save_ds(ds, flag_vals, attrs, output_netcdf)
-                        output_netcdf2 = os.path.join(data_path, nc_filename2)
-                        save_ds(ds2, flag_vals2, attrs, output_netcdf2)
+                        save_ds(ds, flag_vals, attrs, ncfiles[i])
+                        save_ds(ds2, flag_vals2, attrs, f2)
                         skip += 1
 
                     else:
                         # if timestamps are too far apart they're likely not from the same profile pair
-                        print('figure out this case')
+                        # leave flag values as UNKNOWN (2), set the attributes and save the .nc files
+                        save_ds(ds, flag_vals, attrs, ncfiles[i])
+                        save_ds(ds2, flag_vals2, attrs, f2)
+                        skip += 1
 
     return status
 
