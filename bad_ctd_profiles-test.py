@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import xarray as xr
 from shapely.geometry import Polygon
+from shapely.ops import polygonize
 from ioos_qc import qartod
 np.set_printoptions(suppress=True)
 
@@ -253,11 +254,16 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                             df = df.append(df2)
                             df = df.dropna(subset=['pressure', 'conductivity'])
                             polygon_points = df.values.tolist()
+                            polygon_points.append(polygon_points[0])
                             polygon = Polygon(polygon_points)
+                            polygon_lines = polygon.exterior
+                            polygon_crossovers = polygon_lines.intersection(polygon_lines)
+                            polygons = polygonize(polygon_crossovers)
+                            valid_polygons = shapely.geometry.MultiPolygon(polygons)
 
                             # normalize area between the profiles and data range to pressure range
                             pressure_range = (np.nanmax(df.pressure.values) - np.nanmin(df.pressure.values))
-                            area = polygon.area / pressure_range
+                            area = valid_polygons.area / pressure_range
                             data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values)) / pressure_range
 
                             # If the normalized area between the profiles is greater than an order of magnitude more
