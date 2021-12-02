@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import xarray as xr
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import polygonize
 from ioos_qc import qartod
 np.set_printoptions(suppress=True)
@@ -187,7 +187,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                 status = 1
                 continue
 
-            qc_varname = 'ctd_profile_test'
+            qc_varname = 'ctd_hysteresis_test'
             attrs = set_qc_attrs(qc_varname, 'conductivity')
             data_idx, pressure_idx, flag_vals = initialize_flags(ds)
 
@@ -259,20 +259,18 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                             polygon_lines = polygon.exterior
                             polygon_crossovers = polygon_lines.intersection(polygon_lines)
                             polygons = polygonize(polygon_crossovers)
-                            valid_polygons = shapely.geometry.MultiPolygon(polygons)
+                            valid_polygons = MultiPolygon(polygons)
 
-                            # normalize area between the profiles and data range to pressure range
+                            # normalize area between the profiles to the pressure range
                             pressure_range = (np.nanmax(df.pressure.values) - np.nanmin(df.pressure.values))
                             area = valid_polygons.area / pressure_range
-                            data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values)) / pressure_range
+                            data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values))
 
-                            # If the normalized area between the profiles is greater than an order of magnitude more
-                            # than the normalized data range, flag both profiles as fail.
-                            if area > data_range * 10:
+                            # Flag failed profiles
+                            if area > data_range * .2:
                                 flag = qartod.QartodFlags.FAIL
-                            # If the normalized area between the profiles is greater than 5x more than the normalized
-                            # data range, flag both profiles as suspect
-                            elif area > data_range * 5:
+                            # Flag suspect profiles
+                            elif area > data_range * .1:
                                 flag = qartod.QartodFlags.SUSPECT
                             # Otherwise, both profiles are good
                             else:
@@ -288,9 +286,10 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                             ax.invert_yaxis()
                             ax.set_ylabel('Pressure (dbar)')
                             ax.set_xlabel('Conductivity')
-                            ttl = '{} to {}\nNormalized Area = {}, Normalized Data Range = {}'.format(t0str, tfstr,
-                                                                                                      np.round(area, 4),
-                                                                                                      str(np.round(data_range, 4)))
+                            ttl = '{} to {}\nNormalized Area = {}, Data Range = {}' \
+                                  '\nArea = {}'.format(t0str, tfstr, np.round(area, 4),
+                                                       str(np.round(data_range, 4)),
+                                                       np.round(valid_polygons.area, 4))
                             ax.set_title(ttl)
 
                             # Iterate through unknown (2), suspect (3), and fail (4) flags
