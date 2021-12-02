@@ -45,11 +45,25 @@ def initialize_flags(dataset):
     return non_nan_i, press_non_nan_ind, flags
 
 
-def save_ds(dataset, flag_array, attributes, save_file):
+def plot_qartod_flags(axis, dataset):
+    # Iterate through the other QARTOD variables and plot flags
+    colors = ['cyan', 'blue', 'mediumseagreen', 'deeppink', 'purple']
+    flag_defs = dict(suspect=dict(value=3, marker='x'),
+                     fail=dict(value=4, marker='^'))
+    for ci, qv in enumerate([x for x in dataset.data_vars if 'conductivity_qartod' in x]):
+        for fd, info in flag_defs.items():
+            cond_flag = dataset[qv].values
+            qv_idx = np.where(cond_flag == info['value'])[0]
+            if len(qv_idx) > 0:
+                axis.scatter(dataset.conductivity.values[qv_idx], dataset.pressure.values[qv_idx],
+                             color=colors[ci], s=60, marker=info['marker'], label=f'{qv}-{fd}', zorder=11)
+
+
+def save_ds(dataset, flag_array, attributes, variable_name, save_file):
     # Add QC variable to the original dataset
     da = xr.DataArray(flag_array, coords=dataset['conductivity'].coords, dims=dataset['conductivity'].dims,
-                      name='ctd_profile_test', attrs=attributes)
-    dataset['ctd_profile_test'] = da
+                      name=variable_name, attrs=attributes)
+    dataset[variable_name] = da
 
     # Save the resulting netcdf file with QC variable
     dataset.to_netcdf(save_file)
@@ -187,6 +201,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                 status = 1
                 continue
 
+            # TODO change name based on instrument name, and make this able to run on 2 CTDs, and make configs
             qc_varname = 'ctd_hysteresis_test'
             attrs = set_qc_attrs(qc_varname, 'conductivity')
             data_idx, pressure_idx, flag_vals = initialize_flags(ds)
@@ -200,7 +215,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
             if ds.pressure.values[pressure_idx][0] > ds.pressure.values[pressure_idx][-1]:
                 # if profile is up, test can't be run because you need a down profile paired with an up profile
                 # leave flag values as UNKNOWN (2), set the attributes and save the .nc file
-                save_ds(ds, flag_vals, attrs, ncfiles[i])
+                save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
             else:  # first profile is down, check the next file
                 try:
                     f2 = ncfiles[i + 1]
@@ -213,7 +228,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                 except IndexError:
                     # if there are no more files, leave flag values on the first file as UNKNOWN (2)
                     # set the attributes and save the first .nc file
-                    save_ds(ds, flag_vals, attrs, ncfiles[i])
+                    save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
                     continue
 
                 print(f'ds2: {f2}')
@@ -224,7 +239,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                     status = 1
                     # TODO should we be checking the next file? example ru30_20210510T015902Z_sbd.nc
                     # leave flag values on the first file as UNKNOWN (2), set the attributes and save the first .nc file
-                    save_ds(ds, flag_vals, attrs, ncfiles[i])
+                    save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
                     continue
 
                 data_idx2, pressure_idx2, flag_vals2 = initialize_flags(ds2)
@@ -234,7 +249,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                     # if second profile is also down, test can't be run on the first file
                     # leave flag values on the first file as UNKNOWN (2), set the attributes and save the first .nc file
                     # but don't skip because this second file will now be the first file in the next loop
-                    save_ds(ds, flag_vals, attrs, ncfiles[i])
+                    save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
                 else:
                     # first profile is down and second profile is up
                     # determine if the end/start timestamps are < 5 minutes apart,
@@ -301,20 +316,23 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                                                            np.round(valid_polygons.area, 4))
                                 ax.set_title(ttl)
 
-                                # Iterate through unknown (2), suspect (3), and fail (4) flags
-                                flag_defs = dict(unknown=dict(value=2, color='cyan'),
-                                                 suspect=dict(value=3, color='orange'),
+                                # Iterate through suspect (3), and fail (4) flags
+                                flag_defs = dict(suspect=dict(value=3, color='orange'),
                                                  fail=dict(value=4, color='red'))
 
                                 for fd, info in flag_defs.items():
                                     idx = np.where(flag_vals == info['value'])
                                     if len(idx[0]) > 0:
-                                        ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx], color=info['color'],
-                                                   s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                        ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx],
+                                                   color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
                                     idx2 = np.where(flag_vals2 == info['value'])
                                     if len(idx2[0]) > 0:
-                                        ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2], color=info['color'],
-                                                   s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                        ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2],
+                                                   color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
+
+                                # Iterate through the other QARTOD variables and plot flags
+                                plot_qartod_flags(ax, ds)
+                                plot_qartod_flags(ax, ds2)
 
                                 # add legend if necessary
                                 handles, labels = plt.gca().get_legend_handles_labels()
@@ -329,20 +347,20 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
 
                             # save both .nc files with hysteresis flag applied
                             # (or flag values = UNKNOWN (2) if the profile depth range is <5 dbar)
-                            save_ds(ds, flag_vals, attrs, ncfiles[i])
-                            save_ds(ds2, flag_vals2, attrs, f2)
+                            save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
+                            save_ds(ds2, flag_vals2, attrs, qc_varname, f2)
                             skip += 1
 
                         else:
                             # if there is no data left after QARTOD tests are applied, leave flag values UNKNOWN (2)
-                            save_ds(ds, flag_vals, attrs, ncfiles[i])
-                            save_ds(ds2, flag_vals2, attrs, f2)
+                            save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
+                            save_ds(ds2, flag_vals2, attrs, qc_varname, f2)
                             skip += 1
                     else:
                         # if timestamps are too far apart they're likely not from the same profile pair
                         # leave flag values as UNKNOWN (2), set the attributes and save the .nc files
-                        save_ds(ds, flag_vals, attrs, ncfiles[i])
-                        save_ds(ds2, flag_vals2, attrs, f2)
+                        save_ds(ds, flag_vals, attrs, qc_varname, ncfiles[i])
+                        save_ds(ds2, flag_vals2, attrs, qc_varname, f2)
                         skip += 1
 
     return status
