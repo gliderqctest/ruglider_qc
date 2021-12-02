@@ -253,76 +253,91 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                             df2 = conductivity_copy2.to_dataframe().merge(ds2.pressure.to_dataframe(), on='time')
                             df = df.append(df2)
                             df = df.dropna(subset=['pressure', 'conductivity'])
-                            polygon_points = df.values.tolist()
-                            polygon_points.append(polygon_points[0])
-                            polygon = Polygon(polygon_points)
-                            polygon_lines = polygon.exterior
-                            polygon_crossovers = polygon_lines.intersection(polygon_lines)
-                            polygons = polygonize(polygon_crossovers)
-                            valid_polygons = MultiPolygon(polygons)
 
-                            # normalize area between the profiles to the pressure range
-                            pressure_range = (np.nanmax(df.pressure.values) - np.nanmin(df.pressure.values))
-                            area = valid_polygons.area / pressure_range
-                            data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values))
+                            # If the profile depth range is >5 dbar, run the test. Otherwise leave flags UNKNOWN (2)
+                            # since hysteresis can't be determined with a profile that doesn't span a substantial
+                            # depth range (e.g. usually hovering at the surface or bottom)
 
-                            # Flag failed profiles
-                            if area > data_range * .2:
-                                flag = qartod.QartodFlags.FAIL
-                            # Flag suspect profiles
-                            elif area > data_range * .1:
-                                flag = qartod.QartodFlags.SUSPECT
-                            # Otherwise, both profiles are good
-                            else:
-                                flag = qartod.QartodFlags.GOOD
-                            flag_vals[data_idx] = flag
-                            flag_vals2[data_idx2] = flag
+                            # convert negative pressure values to 0
+                            pressure_copy = df.pressure.values.copy()
+                            pressure_copy[pressure_copy < 0] = 0
+                            pressure_range = (np.nanmax(pressure_copy) - np.nanmin(pressure_copy))
+                            if pressure_range > 5:
+                                polygon_points = df.values.tolist()
+                                polygon_points.append(polygon_points[0])
+                                polygon = Polygon(polygon_points)
+                                polygon_lines = polygon.exterior
+                                polygon_crossovers = polygon_lines.intersection(polygon_lines)
+                                polygons = polygonize(polygon_crossovers)
+                                valid_polygons = MultiPolygon(polygons)
 
-                            t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                            tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                            fig, ax = plt.subplots(figsize=(8, 10))
-                            ax.plot(df.conductivity.values, df.pressure.values, color='k')  # plot lines
-                            ax.scatter(df.conductivity.values, df.pressure.values, color='k', s=30)  # plot points
-                            ax.invert_yaxis()
-                            ax.set_ylabel('Pressure (dbar)')
-                            ax.set_xlabel('Conductivity')
-                            ttl = '{} to {}\nNormalized Area = {}, Data Range = {}' \
-                                  '\nArea = {}'.format(t0str, tfstr, np.round(area, 4),
-                                                       str(np.round(data_range, 4)),
-                                                       np.round(valid_polygons.area, 4))
-                            ax.set_title(ttl)
+                                # normalize area between the profiles to the pressure range
+                                area = valid_polygons.area / pressure_range
+                                data_range = (np.nanmax(df.conductivity.values) - np.nanmin(df.conductivity.values))
 
-                            # Iterate through unknown (2), suspect (3), and fail (4) flags
-                            flag_defs = dict(unknown=dict(value=2, color='cyan'),
-                                             suspect=dict(value=3, color='orange'),
-                                             fail=dict(value=4, color='red'))
+                                # Flag failed profiles
+                                if area > data_range * .2:
+                                    flag = qartod.QartodFlags.FAIL
+                                # Flag suspect profiles
+                                elif area > data_range * .1:
+                                    flag = qartod.QartodFlags.SUSPECT
+                                # Otherwise, both profiles are good
+                                else:
+                                    flag = qartod.QartodFlags.GOOD
+                                flag_vals[data_idx] = flag
+                                flag_vals2[data_idx2] = flag
 
-                            for fd, info in flag_defs.items():
-                                idx = np.where(flag_vals == info['value'])
-                                if len(idx[0]) > 0:
-                                    ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx], color=info['color'],
-                                               s=40, label=f'{qc_varname}-{fd}', zorder=10)
-                                idx2 = np.where(flag_vals2 == info['value'])
-                                if len(idx2[0]) > 0:
-                                    ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2], color=info['color'],
-                                               s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                                tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                                fig, ax = plt.subplots(figsize=(8, 10))
+                                ax.plot(df.conductivity.values, df.pressure.values, color='k')  # plot lines
+                                ax.scatter(df.conductivity.values, df.pressure.values, color='k', s=30)  # plot points
+                                ax.invert_yaxis()
+                                ax.set_ylabel('Pressure (dbar)')
+                                ax.set_xlabel('Conductivity')
+                                ttl = '{} to {}\nNormalized Area = {}, Data Range = {}' \
+                                      '\nArea = {}'.format(t0str, tfstr, np.round(area, 4),
+                                                           str(np.round(data_range, 4)),
+                                                           np.round(valid_polygons.area, 4))
+                                ax.set_title(ttl)
 
-                            # add legend if necessary
-                            handles, labels = plt.gca().get_legend_handles_labels()
-                            by_label = dict(zip(labels, handles))
-                            if len(handles) > 0:
-                                ax.legend(by_label.values(), by_label.keys(), loc='best')
+                                # Iterate through unknown (2), suspect (3), and fail (4) flags
+                                flag_defs = dict(unknown=dict(value=2, color='cyan'),
+                                                 suspect=dict(value=3, color='orange'),
+                                                 fail=dict(value=4, color='red'))
 
-                            plt_name = f'{ncfiles[i].split("/")[-1].split(".nc")[0]}_{f2.split("/")[-1].split(".nc")[0]}_qc.png'
-                            sfile = os.path.join(data_path, plt_name)
-                            plt.savefig(sfile, dpi=300)
-                            plt.close()
+                                for fd, info in flag_defs.items():
+                                    idx = np.where(flag_vals == info['value'])
+                                    if len(idx[0]) > 0:
+                                        ax.scatter(ds.conductivity.values[idx], ds.pressure.values[idx], color=info['color'],
+                                                   s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                    idx2 = np.where(flag_vals2 == info['value'])
+                                    if len(idx2[0]) > 0:
+                                        ax.scatter(ds2.conductivity.values[idx2], ds2.pressure.values[idx2], color=info['color'],
+                                                   s=40, label=f'{qc_varname}-{fd}', zorder=10)
 
-                        # save both .nc files with QC applied
-                        save_ds(ds, flag_vals, attrs, ncfiles[i])
-                        save_ds(ds2, flag_vals2, attrs, f2)
-                        skip += 1
+                                # add legend if necessary
+                                handles, labels = plt.gca().get_legend_handles_labels()
+                                by_label = dict(zip(labels, handles))
+                                if len(handles) > 0:
+                                    ax.legend(by_label.values(), by_label.keys(), loc='best')
 
+                                plt_name = f'{ncfiles[i].split("/")[-1].split(".nc")[0]}_{f2.split("/")[-1].split(".nc")[0]}_qc.png'
+                                sfile = os.path.join(data_path, plt_name)
+                                plt.savefig(sfile, dpi=300)
+                                plt.close()
+
+                            # save both .nc files with hysteresis flag applied
+                            # (or flag values = UNKNOWN (2) if the profile depth range is <5 dbar)
+                            save_ds(ds, flag_vals, attrs, ncfiles[i])
+                            save_ds(ds2, flag_vals2, attrs, f2)
+                            skip += 1
+
+                        else:
+                            # if there is no data left after QARTOD tests are applied, leave flag values UNKNOWN (2)
+                            save_ds(ds, flag_vals, attrs, ncfiles[i])
+                            save_ds(ds2, flag_vals2, attrs, f2)
+                            skip += 1
                     else:
                         # if timestamps are too far apart they're likely not from the same profile pair
                         # leave flag values as UNKNOWN (2), set the attributes and save the .nc files
