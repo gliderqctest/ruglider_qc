@@ -198,7 +198,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
 
                 try:
                     ds[cv]
-                except AttributeError:
+                except KeyError:
                     logging.error('conductivity variable not found in file {:s})'.format(ncfiles[i]))
                     status = 1
                     continue
@@ -238,7 +238,7 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                     print(f'ds2: {f2}')
                     try:
                         ds2[cv]
-                    except AttributeError:
+                    except KeyError:
                         logging.error('conductivity variable not found in file {:s})'.format(f2))
                         status = 1
                         # TODO should we be checking the next file? example ru30_20210510T015902Z_sbd.nc
