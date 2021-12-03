@@ -15,6 +15,7 @@ import xarray as xr
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import polygonize
 from ioos_qc import qartod
+from ioos_qc.utils import load_config_as_dict as loadconfig
 np.set_printoptions(suppress=True)
 
 
@@ -82,9 +83,12 @@ def set_qc_attrs(test, sensor, thresholds=None):
     flag_values = [1, 2, 3, 4, 9]
     standard_name = f'{test}_quality_flag'  # 'flat_line_test_quality_flag'
     long_name = 'CTD Hysteresis Test Quality Flag'
+    comment = 'Test for CTD sensor lag, determined by comparing the area between profile pairs normalized to ' \
+              'pressure range against the data range times defined thresholds found in flag_configurations.'
 
     # Defining gross/flatline QC variable attributes
     attrs = {
+        'comment': comment,
         'standard_name': standard_name,
         'long_name': long_name,
         'flag_values': np.byte(flag_values),
@@ -134,6 +138,12 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
         return 1
     logging.info('Deployments root: {:s}'.format(deployments_root))
 
+    # Set the default qc configuration path
+    qc_config_root = os.path.join(data_home, 'qc', 'config')
+    if not os.path.isdir(qc_config_root):
+        logging.warning('Invalid QC config root: {:s}'.format(qc_config_root))
+        return 1
+
     # for deployment in args.deployments:
     for deployment in [deployments]:
 
@@ -163,6 +173,26 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
             logging.warning('Deployment location does not exist: {:s}'.format(deployment_location))
             status = 1
             continue
+
+        # Set the deployment qc configuration path
+        deployment_qc_config_root = os.path.join(deployment_location, 'config', 'qc')
+        if not os.path.isdir(qc_config_root):
+            logging.warning('Invalid deployment QC config root: {:s}'.format(deployment_qc_config_root))
+            return 1
+
+        # Get the test thresholds from the config file for the deployment (if available) or the default
+        config_file = os.path.join(deployment_qc_config_root, 'ctd_hysteresis.yml')
+        if not os.path.isfile(config_file):
+            logging.warning('Deployment config file not specified: {:s}. Using default config.'.format(config_file))
+            config_file = os.path.join(qc_config_root, 'ctd_hysteresis.yml')
+            if not os.path.isfile(config_file):
+                logging.error('Invalid default config file: {:s}.'.format(config_file))
+                status = 1
+                continue
+
+        logging.info('Using config file: {:s}'.format(config_file))
+        config_dict = loadconfig(config_file)
+        hysteresis_thresholds = config_dict['ctd_hysteresis_test']
 
         # Set the deployment netcdf data path
         data_path = os.path.join(deployment_location, 'data', 'out', 'nc',
@@ -207,7 +237,9 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                 ctd_instrument = [x for x in ds[cv].ancillary_variables.split(' ') if 'instrument_ctd' in x][0]
 
                 qc_varname = f'{ctd_instrument}_hysteresis_test'
-                attrs = set_qc_attrs(qc_varname, cv)
+                kwargs = dict()
+                kwargs['thresholds'] = hysteresis_thresholds
+                attrs = set_qc_attrs(qc_varname, cv, **kwargs)
                 data_idx, pressure_idx, flag_vals = initialize_flags(ds, cv)
 
                 if len(data_idx) == 0:
@@ -296,10 +328,10 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
 
                                     # TODO make the thresholds config files
                                     # Flag failed profiles
-                                    if area > data_range * .2:
+                                    if area > data_range * hysteresis_thresholds['fail_threshold']:
                                         flag = qartod.QartodFlags.FAIL
                                     # Flag suspect profiles
-                                    elif area > data_range * .1:
+                                    elif area > data_range * hysteresis_thresholds['suspect_threshold']:
                                         flag = qartod.QartodFlags.SUSPECT
                                     # Otherwise, both profiles are good
                                     else:
