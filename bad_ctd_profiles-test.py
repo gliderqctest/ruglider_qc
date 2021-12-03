@@ -124,12 +124,12 @@ def main(args):
     dataset_type = args.level
 
     # Find the glider deployments root directory
-    data_home = os.getenv('GLIDER_DATA_HOME')
+    data_home = os.getenv('GLIDER_DATA_HOME_TEST')
     if not data_home:
-        logging.error('GLIDER_DATA_HOME not set')
+        logging.error('GLIDER_DATA_HOME_TEST not set')
         return 1
     elif not os.path.isdir(data_home):
-        logging.error('Invalid GLIDER_DATA_HOME: {:s}'.format(data_home))
+        logging.error('Invalid GLIDER_DATA_HOME_TEST: {:s}'.format(data_home))
         return 1
 
     deployments_root = os.path.join(data_home, 'deployments')
