@@ -326,7 +326,6 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
                                     area = valid_polygons.area / pressure_range
                                     data_range = (np.nanmax(df[cv].values) - np.nanmin(df[cv].values))
 
-                                    # TODO make the thresholds config files
                                     # Flag failed profiles
                                     if area > data_range * hysteresis_thresholds['fail_threshold']:
                                         flag = qartod.QartodFlags.FAIL
