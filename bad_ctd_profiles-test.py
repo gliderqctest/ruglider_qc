@@ -338,48 +338,48 @@ def main(args):
                                     flag_vals[data_idx] = flag
                                     flag_vals2[data_idx2] = flag
 
-                                    t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                                    tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
-                                    fig, ax = plt.subplots(figsize=(8, 10))
-                                    ax.plot(df[cv].values, df.pressure.values, color='k')  # plot lines
-                                    ax.scatter(df[cv].values, df.pressure.values, color='k', s=30)  # plot points
-                                    ax.invert_yaxis()
-                                    ax.set_ylabel('Pressure (dbar)')
-                                    ax.set_xlabel('Conductivity')
-                                    ttl = '{} to {}\nNormalized Area = {}, Data Range = {}' \
-                                          '\nArea = {}'.format(t0str, tfstr, np.round(area, 4),
-                                                               str(np.round(data_range, 4)),
-                                                               np.round(valid_polygons.area, 4))
-                                    ax.set_title(ttl)
-
-                                    # Iterate through suspect (3), and fail (4) flags
-                                    flag_defs = dict(suspect=dict(value=3, color='orange'),
-                                                     fail=dict(value=4, color='red'))
-
-                                    for fd, info in flag_defs.items():
-                                        idx = np.where(flag_vals == info['value'])
-                                        if len(idx[0]) > 0:
-                                            ax.scatter(ds[cv].values[idx], ds.pressure.values[idx],
-                                                       color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
-                                        idx2 = np.where(flag_vals2 == info['value'])
-                                        if len(idx2[0]) > 0:
-                                            ax.scatter(ds2[cv].values[idx2], ds2.pressure.values[idx2],
-                                                       color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
-
-                                    # Iterate through the other QARTOD variables and plot flags
-                                    plot_qartod_flags(ax, ds, cv)
-                                    plot_qartod_flags(ax, ds2, cv)
-
-                                    # add legend if necessary
-                                    handles, labels = plt.gca().get_legend_handles_labels()
-                                    by_label = dict(zip(labels, handles))
-                                    if len(handles) > 0:
-                                        ax.legend(by_label.values(), by_label.keys(), loc='best')
-
-                                    plt_name = f'{ncfiles[i].split("/")[-1].split(".nc")[0]}_{f2.split("/")[-1].split(".nc")[0]}_qc.png'
-                                    sfile = os.path.join(data_path, plt_name)
-                                    plt.savefig(sfile, dpi=300)
-                                    plt.close()
+                                    # t0str = pd.to_datetime(np.nanmin(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                                    # tfstr = pd.to_datetime(np.nanmax(df.index.values)).strftime('%Y-%m-%dT%H:%M:%S')
+                                    # fig, ax = plt.subplots(figsize=(8, 10))
+                                    # ax.plot(df[cv].values, df.pressure.values, color='k')  # plot lines
+                                    # ax.scatter(df[cv].values, df.pressure.values, color='k', s=30)  # plot points
+                                    # ax.invert_yaxis()
+                                    # ax.set_ylabel('Pressure (dbar)')
+                                    # ax.set_xlabel('Conductivity')
+                                    # ttl = '{} to {}\nNormalized Area = {}, Data Range = {}' \
+                                    #       '\nArea = {}'.format(t0str, tfstr, np.round(area, 4),
+                                    #                            str(np.round(data_range, 4)),
+                                    #                            np.round(valid_polygons.area, 4))
+                                    # ax.set_title(ttl)
+                                    #
+                                    # # Iterate through suspect (3), and fail (4) flags
+                                    # flag_defs = dict(suspect=dict(value=3, color='orange'),
+                                    #                  fail=dict(value=4, color='red'))
+                                    #
+                                    # for fd, info in flag_defs.items():
+                                    #     idx = np.where(flag_vals == info['value'])
+                                    #     if len(idx[0]) > 0:
+                                    #         ax.scatter(ds[cv].values[idx], ds.pressure.values[idx],
+                                    #                    color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                    #     idx2 = np.where(flag_vals2 == info['value'])
+                                    #     if len(idx2[0]) > 0:
+                                    #         ax.scatter(ds2[cv].values[idx2], ds2.pressure.values[idx2],
+                                    #                    color=info['color'], s=40, label=f'{qc_varname}-{fd}', zorder=10)
+                                    #
+                                    # # Iterate through the other QARTOD variables and plot flags
+                                    # plot_qartod_flags(ax, ds, cv)
+                                    # plot_qartod_flags(ax, ds2, cv)
+                                    #
+                                    # # add legend if necessary
+                                    # handles, labels = plt.gca().get_legend_handles_labels()
+                                    # by_label = dict(zip(labels, handles))
+                                    # if len(handles) > 0:
+                                    #     ax.legend(by_label.values(), by_label.keys(), loc='best')
+                                    #
+                                    # plt_name = f'{ncfiles[i].split("/")[-1].split(".nc")[0]}_{f2.split("/")[-1].split(".nc")[0]}_qc.png'
+                                    # sfile = os.path.join(data_path, plt_name)
+                                    # plt.savefig(sfile, dpi=300)
+                                    # plt.close()
 
                                 # save both .nc files with hysteresis flag applied
                                 # (or flag values = UNKNOWN (2) if the profile depth range is <5 dbar)
