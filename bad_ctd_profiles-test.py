@@ -104,8 +104,8 @@ def set_qc_attrs(test, sensor, thresholds=None):
     return attrs
 
 
-# def main(args):
-def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
+def main(args):
+# def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
     """
     Run ioos_qc QARTOD tests on processed slocum glider netcdf files,
     and append the results to the original netcdf file.
@@ -114,14 +114,14 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
     status = 0
 
     # Set up the logger
-    # log_level = getattr(logging, args.loglevel.upper())
-    log_level = getattr(logging, loglevel.upper())
+    log_level = getattr(logging, args.loglevel.upper())
+    # log_level = getattr(logging, loglevel.upper())
     log_format = '%(asctime)s%(module)s:%(levelname)s:%(message)s [line %(lineno)d]'
     logging.basicConfig(format=log_format, level=log_level)
 
-    # cdm_data_type = args.cdm_data_type
-    # mode = args.mode
-    # dataset_type = args.level
+    cdm_data_type = args.cdm_data_type
+    mode = args.mode
+    dataset_type = args.level
 
     # Find the glider deployments root directory
     data_home = os.getenv('GLIDER_DATA_HOME')
@@ -144,8 +144,8 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
         logging.warning('Invalid QC config root: {:s}'.format(qc_config_root))
         return 1
 
-    # for deployment in args.deployments:
-    for deployment in [deployments]:
+    for deployment in args.deployments:
+    # for deployment in [deployments]:
 
         logging.info('Checking deployment {:s}'.format(deployment))
 
@@ -403,40 +403,40 @@ def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
 
 
 if __name__ == '__main__':
-    deploy = 'ru30-20210503T1929'  # maracoos_02-20210716T1814 ru34-20200729T1430 ru33-20201014T1746 ru33-20200715T1558  ru32-20190102T1317  ru30-20210503T1929
-    mode = 'rt'
-    d = 'profile'
-    ll = 'info'
-    level = 'sci'
-    main(deploy, mode, d, ll, level)
-    # arg_parser = argparse.ArgumentParser(description=main.__doc__,
-    #                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    #
-    # arg_parser.add_argument('deployments',
-    #                         nargs='+',
-    #                         help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
-    #
-    # arg_parser.add_argument('-m', '--mode',
-    #                         help='Deployment dataset status <Default=rt>',
-    #                         choices=['rt', 'delayed'],
-    #                         default='rt')
-    #
-    # arg_parser.add_argument('--level',
-    #                         choices=['raw', 'sci', 'ngdac'],
-    #                         default='sci',
-    #                         help='Dataset type')
-    #
-    # arg_parser.add_argument('-d', '--cdm_data_type',
-    #                         help='Dataset type <default=profile>',
-    #                         choices=['trajectory', 'profile'],
-    #                         default='profile')
-    #
-    # arg_parser.add_argument('-l', '--loglevel',
-    #                         help='Verbosity level <Default=warning>',
-    #                         type=str,
-    #                         choices=['debug', 'info', 'warning', 'error', 'critical'],
-    #                         default='info')
-    #
-    # parsed_args = arg_parser.parse_args()
-    #
-    # sys.exit(main(parsed_args))
+    # deploy = 'ru30-20210503T1929'  # maracoos_02-20210716T1814 ru34-20200729T1430 ru33-20201014T1746 ru33-20200715T1558  ru32-20190102T1317  ru30-20210503T1929
+    # mode = 'rt'
+    # d = 'profile'
+    # ll = 'info'
+    # level = 'sci'
+    # main(deploy, mode, d, ll, level)
+    arg_parser = argparse.ArgumentParser(description=main.__doc__,
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    arg_parser.add_argument('deployments',
+                            nargs='+',
+                            help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
+
+    arg_parser.add_argument('-m', '--mode',
+                            help='Deployment dataset status <Default=rt>',
+                            choices=['rt', 'delayed'],
+                            default='rt')
+
+    arg_parser.add_argument('--level',
+                            choices=['raw', 'sci', 'ngdac'],
+                            default='sci',
+                            help='Dataset type')
+
+    arg_parser.add_argument('-d', '--cdm_data_type',
+                            help='Dataset type <default=profile>',
+                            choices=['trajectory', 'profile'],
+                            default='profile')
+
+    arg_parser.add_argument('-l', '--loglevel',
+                            help='Verbosity level <Default=warning>',
+                            type=str,
+                            choices=['debug', 'info', 'warning', 'error', 'critical'],
+                            default='info')
+
+    parsed_args = arg_parser.parse_args()
+
+    sys.exit(main(parsed_args))
