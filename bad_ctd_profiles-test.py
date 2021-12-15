@@ -204,7 +204,7 @@ def main(args):
             continue
 
         # List the netcdf files
-        ncfiles = sorted(glob.glob(os.path.join(data_path, 'queue', '*.nc')))
+        ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
 
         conductivity_varnames = ['conductivity']
 
