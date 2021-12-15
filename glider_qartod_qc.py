@@ -194,8 +194,8 @@ def main(args):
             status = 1
             continue
 
-        # List the netcdf files in queue
-        ncfiles = sorted(glob.glob(os.path.join(data_path, 'queue', '*.nc')))
+        # List the netcdf files in qc_queue
+        ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
 
         # Iterate through files and apply QC
         for f in ncfiles:
