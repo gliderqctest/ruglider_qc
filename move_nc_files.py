@@ -13,7 +13,7 @@ from pathlib import Path
 def main(args):
 # def main(deployments, mode, cdm_data_type, loglevel, dataset_type):
     """
-    Move QC'd netcdf files to the final data directory (out of queue) to send to ERDDAP
+    Move QC'd netcdf files to the final data directory (out of qc_queue) to send to ERDDAP
     """
     status = 0
 
@@ -81,8 +81,8 @@ def main(args):
             status = 1
             continue
 
-        # List the netcdf files in queue
-        ncfiles = sorted(glob.glob(os.path.join(data_path, 'queue', '*.nc')))
+        # List the netcdf files in qc_queue
+        ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
 
         # Iterate through files and move them to the parent directory
         for f in ncfiles:
